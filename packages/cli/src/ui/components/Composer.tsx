@@ -636,6 +636,8 @@ export const Composer: React.FC<ComposerProps> = ({ isFocused }) => {
               >
                 {showUiDetails && showShortcutsHint && <ShortcutsHint />}
               </Box>
+
+              {/*showUiDetails && <HorizontalLine />*/}
             </Box>
             {showMinimalMetaRow && (
               <Box
@@ -666,7 +668,9 @@ export const Composer: React.FC<ComposerProps> = ({ isFocused }) => {
                           : uiState.currentLoadingPhrase
                       }
                       thoughtLabel={
-                        inlineThinkingMode === 'full' ? 'Thinking...' : undefined
+                        inlineThinkingMode === 'full'
+                          ? 'Thinking...'
+                          : undefined
                       }
                       elapsedTime={uiState.elapsedTime}
                     />
@@ -747,7 +751,9 @@ export const Composer: React.FC<ComposerProps> = ({ isFocused }) => {
                       )}
                       {uiState.shellModeActive && (
                         <Box
-                          marginLeft={showApprovalIndicator && !isNarrow ? 1 : 0}
+                          marginLeft={
+                            showApprovalIndicator && !isNarrow ? 1 : 0
+                          }
                           marginTop={showApprovalIndicator && isNarrow ? 1 : 0}
                         >
                           <ShellModeIndicator />
@@ -765,7 +771,7 @@ export const Composer: React.FC<ComposerProps> = ({ isFocused }) => {
                           marginTop={
                             (showApprovalIndicator ||
                               uiState.shellModeActive) &&
-                            !isNarrow
+                            isNarrow
                               ? 1
                               : 0
                           }
