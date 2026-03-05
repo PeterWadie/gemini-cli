@@ -326,7 +326,9 @@ export const Composer: React.FC<ComposerProps> = ({ isFocused }) => {
           wrap="truncate-end"
           italic={ambientText === uiState.currentWittyPhrase}
         >
-          {ambientText}
+          {ambientText === uiState.currentTip
+            ? `Tip: ${ambientText}`
+            : ambientText}
         </Text>
       </Box>
     );
@@ -385,7 +387,6 @@ export const Composer: React.FC<ComposerProps> = ({ isFocused }) => {
   };
 
   const statusNode = renderStatusNode();
-  const hasStatusMessage = Boolean(statusNode) || hasToast;
 
   /**
    * Renders the minimal metadata row content shown when UI details are hidden.
@@ -589,7 +590,6 @@ export const Composer: React.FC<ComposerProps> = ({ isFocused }) => {
       {showShortcutsHelp && <ShortcutsHelp />}
 
       <Box width="100%" flexDirection="column">
-        {showUiDetails && hasStatusMessage && <HorizontalLine />}
         {isExperimentalLayout ? (
           renderExperimentalStatusNode()
         ) : (
@@ -719,12 +719,14 @@ export const Composer: React.FC<ComposerProps> = ({ isFocused }) => {
                 )}
               </Box>
             )}
+            {showUiDetails && <HorizontalLine />}
             {showUiDetails && (
               <Box
                 width="100%"
                 flexDirection="row"
                 flexWrap="wrap"
                 alignItems="center"
+                justifyContent="space-between"
                 marginLeft={1}
               >
                 {hasToast ? (
@@ -735,12 +737,21 @@ export const Composer: React.FC<ComposerProps> = ({ isFocused }) => {
                       flexDirection="row"
                       alignItems="center"
                       flexWrap="wrap"
+                      flexGrow={1}
                     >
                       {showApprovalIndicator && (
                         <ApprovalModeIndicator
                           approvalMode={showApprovalModeIndicator}
                           allowPlanMode={uiState.allowPlanMode}
                         />
+                      )}
+                      {uiState.shellModeActive && (
+                        <Box
+                          marginLeft={showApprovalIndicator && !isNarrow ? 1 : 0}
+                          marginTop={showApprovalIndicator && isNarrow ? 1 : 0}
+                        >
+                          <ShellModeIndicator />
+                        </Box>
                       )}
                       {showRawMarkdownIndicator && (
                         <Box
@@ -764,14 +775,11 @@ export const Composer: React.FC<ComposerProps> = ({ isFocused }) => {
                       )}
                     </Box>
                     {!showLoadingIndicator && !hasUserHooks && (
-                      <>
-                        <Box marginLeft={1}>
-                          <Text color={theme.text.secondary}>·</Text>
-                        </Box>
+                      <Box marginRight={1}>
                         <StatusDisplay
                           hideContextSummary={hideContextSummary}
                         />
-                      </>
+                      </Box>
                     )}
                   </>
                 )}

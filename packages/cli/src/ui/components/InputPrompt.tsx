@@ -1475,7 +1475,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   const borderColor = disabled
     ? theme.border.default
     : isShellFocused && !isEmbeddedShellFocused
-      ? (statusColor ?? theme.border.focused)
+      ? (statusColor ?? theme.ui.focus)
       : theme.border.default;
 
   // Automatically blur the input if it's disabled.
