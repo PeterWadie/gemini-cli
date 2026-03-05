@@ -74,6 +74,7 @@ export const HistoryItemDisplay: React.FC<HistoryItemDisplayProps> = ({
       key={itemForDisplay.id}
       width={terminalWidth}
       marginTop={needsTopMarginAfterThinking ? 1 : 0}
+      paddingX={0}
     >
       {/* Render standard message types */}
       {itemForDisplay.type === 'thinking' && inlineThinkingMode !== 'off' && (

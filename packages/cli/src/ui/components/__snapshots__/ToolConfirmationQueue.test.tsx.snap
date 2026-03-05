@@ -11,8 +11,8 @@ exports[`ToolConfirmationQueue > calculates availableContentHeight based on avai
 │ Apply this change?                                                           │
 │                                                                              │
 │ ● 1. Allow once                                                              │
-│   2. Allow for this session                                                  │
-│   3. Modify with external editor                                             │
+│   2. Allow for this session   Enter to select · ↑/↓ to navigate · Esc to     │
+│   3. Modify with external edi…cancel                                         │
 │   4. No, suggest changes (esc)                                               │
 │                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
@@ -34,8 +34,8 @@ exports[`ToolConfirmationQueue > does not render expansion hint when constrainHe
 │ Apply this change?                                                           │
 │                                                                              │
 │ ● 1. Allow once                                                              │
-│   2. Allow for this session                                                  │
-│   3. Modify with external editor                                             │
+│   2. Allow for this session   Enter to select · ↑/↓ to navigate · Esc to     │
+│   3. Modify with external edi…cancel                                         │
 │   4. No, suggest changes (esc)                                               │
 │                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
@@ -102,8 +102,8 @@ exports[`ToolConfirmationQueue > renders expansion hint when content is long and
 │ Apply this change?                                                           │
 │                                                                              │
 │ ● 1. Allow once                                                              │
-│   2. Allow for this session                                                  │
-│   3. Modify with external editor                                             │
+│   2. Allow for this session   Enter to select · ↑/↓ to navigate · Esc to     │
+│   3. Modify with external edi…cancel                                         │
 │   4. No, suggest changes (esc)                                               │
 │                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
@@ -121,8 +121,8 @@ exports[`ToolConfirmationQueue > renders the confirming tool with progress indic
 │ Allow execution of: 'ls'?                                                    │
 │                                                                              │
 │ ● 1. Allow once                                                              │
-│   2. Allow for this session                                                  │
-│   3. No, suggest changes (esc)                                               │
+│   2. Allow for this session  Enter to select · ↑/↓ to navigate · Esc to      │
+│   3. No, suggest changes (e… cancel                                          │
 │                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 "

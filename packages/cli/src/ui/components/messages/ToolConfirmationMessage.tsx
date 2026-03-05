@@ -35,6 +35,7 @@ import { AskUserDialog } from '../AskUserDialog.js';
 import { ExitPlanModeDialog } from '../ExitPlanModeDialog.js';
 import { WarningMessage } from './WarningMessage.js';
 import { colorizeCode } from '../../utils/CodeColorizer.js';
+import { DialogFooter } from '../shared/DialogFooter.js';
 import {
   getDeceptiveUrlDetails,
   toUnicodeUrl,
@@ -746,6 +747,17 @@ export const ToolConfirmationMessage: React.FC<
               onSelect={handleSelect}
               isFocused={isFocused}
               initialIndex={initialIndex}
+            />
+            <DialogFooter
+              primaryAction="Enter to select"
+              navigationActions="↑/↓ to navigate"
+              extraParts={
+                hasMcpToolDetails
+                  ? [
+                      `${expandDetailsHintKey} to ${isMcpToolDetailsExpanded ? 'collapse' : 'expand'} details`,
+                    ]
+                  : []
+              }
             />
           </Box>
         </>
