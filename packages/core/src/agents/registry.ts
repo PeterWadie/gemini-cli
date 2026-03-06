@@ -27,7 +27,11 @@ import {
   type ModelConfig,
   ModelConfigService,
 } from '../services/modelConfigService.js';
-import { PolicyDecision, PRIORITY_SUBAGENT_TOOL } from '../policy/types.js';
+import {
+  PolicyDecision,
+  PRIORITY_SUBAGENT_TOOL,
+  ApprovalMode,
+} from '../policy/types.js';
 
 /**
  * Returns the model config alias for a given agent definition.
@@ -383,6 +387,7 @@ export class AgentRegistry {
     policyEngine.removeRulesForTool(definition.name, 'AgentRegistry (Dynamic)');
 
     // Add the new dynamic policy
+    const isYolo = this.config.getApprovalMode() === ApprovalMode.YOLO;
     const isAcknowledged =
       definition.kind === 'local' &&
       (!definition.metadata?.hash ||
@@ -397,7 +402,10 @@ export class AgentRegistry {
 
     policyEngine.addRule({
       toolName: definition.name,
-      decision: isAcknowledged ? PolicyDecision.ALLOW : PolicyDecision.ASK_USER,
+      decision:
+        isAcknowledged || isYolo
+          ? PolicyDecision.ALLOW
+          : PolicyDecision.ASK_USER,
       priority: PRIORITY_SUBAGENT_TOOL,
       source: 'AgentRegistry (Dynamic)',
     });
