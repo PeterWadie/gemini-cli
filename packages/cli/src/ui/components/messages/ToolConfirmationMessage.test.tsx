@@ -32,6 +32,8 @@ describe('ToolConfirmationMessage', () => {
     confirm: mockConfirm,
     cancel: vi.fn(),
     isDiffingEnabled: false,
+    isExpanded: vi.fn().mockReturnValue(false),
+    toggleExpansion: vi.fn(),
   });
 
   const mockConfig = {
@@ -460,6 +462,8 @@ describe('ToolConfirmationMessage', () => {
         confirm: vi.fn(),
         cancel: vi.fn(),
         isDiffingEnabled: false,
+        isExpanded: vi.fn().mockReturnValue(false),
+        toggleExpansion: vi.fn(),
       });
 
       const { lastFrame, waitUntilReady, unmount } = renderWithProviders(
@@ -488,6 +492,8 @@ describe('ToolConfirmationMessage', () => {
         confirm: vi.fn(),
         cancel: vi.fn(),
         isDiffingEnabled: false,
+        isExpanded: vi.fn().mockReturnValue(false),
+        toggleExpansion: vi.fn(),
       });
 
       const { lastFrame, waitUntilReady, unmount } = renderWithProviders(
@@ -516,6 +522,8 @@ describe('ToolConfirmationMessage', () => {
         confirm: vi.fn(),
         cancel: vi.fn(),
         isDiffingEnabled: true,
+        isExpanded: vi.fn().mockReturnValue(false),
+        toggleExpansion: vi.fn(),
       });
 
       const { lastFrame, waitUntilReady, unmount } = renderWithProviders(
