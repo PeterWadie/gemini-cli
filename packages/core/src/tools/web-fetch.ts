@@ -77,31 +77,6 @@ function checkRateLimit(url: string): {
 }
 
 /**
- * Normalizes a URL by converting hostname to lowercase, removing trailing slashes,
- * and removing default ports.
- */
-export function normalizeUrl(urlStr: string): string {
-  try {
-    const url = new URL(urlStr);
-    url.hostname = url.hostname.toLowerCase();
-    // Remove trailing slash if present in pathname (except for root '/')
-    if (url.pathname.endsWith('/') && url.pathname.length > 1) {
-      url.pathname = url.pathname.slice(0, -1);
-    }
-    // Remove default ports
-    if (
-      (url.protocol === 'http:' && url.port === '80') ||
-      (url.protocol === 'https:' && url.port === '443')
-    ) {
-      url.port = '';
-    }
-    return url.href;
-  } catch {
-    return urlStr;
-  }
-}
-
-/**
  * Parses a prompt to extract valid URLs and identify malformed ones.
  */
 export function parsePrompt(text: string): {
@@ -175,15 +150,6 @@ interface GroundingSupportSegment {
 interface GroundingSupportItem {
   segment?: GroundingSupportSegment;
   groundingChunkIndices?: number[];
-}
-
-interface UrlMetadata {
-  url?: string;
-  urlRetrievalStatus?: string;
-}
-
-interface UrlContextMetadata {
-  urlMetadata?: UrlMetadata[];
 }
 
 /**
@@ -575,69 +541,6 @@ Response: ${truncateString(rawResponseText, 10000, '\n\n... [Error response trun
     }
   }
 
-  private applyGroundingSupport(
-    responseText: string,
-    groundingSupports: GroundingSupportItem[] | undefined,
-  ): string {
-    if (!groundingSupports || groundingSupports.length === 0) {
-      return responseText;
-    }
-
-    const insertions: Array<{ index: number; marker: string }> = [];
-    groundingSupports.forEach((support: GroundingSupportItem) => {
-      if (support.segment && support.groundingChunkIndices) {
-        const citationMarker = support.groundingChunkIndices
-          .map((chunkIndex: number) => `[${chunkIndex + 1}]`)
-          .join('');
-        insertions.push({
-          index: support.segment.endIndex,
-          marker: citationMarker,
-        });
-      }
-    });
-
-    insertions.sort((a, b) => b.index - a.index);
-    const responseChars = responseText.split('');
-    insertions.forEach((insertion) => {
-      responseChars.splice(insertion.index, 0, insertion.marker);
-    });
-    return responseChars.join('');
-  }
-
-  private formatSourceList(sources: GroundingChunkItem[] | undefined): string {
-    if (!sources || sources.length === 0) {
-      return '';
-    }
-
-    const sourceListFormatted: string[] = [];
-    sources.forEach((source: GroundingChunkItem, index: number) => {
-      const title = source.web?.title || 'Untitled';
-      const uri = source.web?.uri || 'Unknown URI';
-      sourceListFormatted.push(`[${index + 1}] ${title} (${uri})`);
-    });
-
-    return `\n\nSources:\n${sourceListFormatted.join('\n')}`;
-  }
-
-  private async aggregateRescuedContent(
-    urls: string[],
-    signal: AbortSignal,
-  ): Promise<string> {
-    const uniqueRescue = [...new Set(urls)];
-    const contentBudget = Math.floor(MAX_CONTENT_LENGTH / uniqueRescue.length);
-    const rescuedResults: string[] = [];
-
-    for (const url of uniqueRescue) {
-      rescuedResults.push(
-        await this.executeFallbackForUrl(url, signal, contentBudget),
-      );
-    }
-
-    return rescuedResults
-      .map((content, i) => `URL: ${uniqueRescue[i]}\nContent:\n${content}`)
-      .join('\n\n---\n\n');
-  }
-
   async execute(signal: AbortSignal): Promise<ToolResult> {
     if (this.config.getDirectWebFetch()) {
       return this.executeExperimental(signal);
@@ -645,23 +548,26 @@ Response: ${truncateString(rawResponseText, 10000, '\n\n... [Error response trun
     const userPrompt = this.params.prompt!;
     const { validUrls } = parsePrompt(userPrompt);
 
-    // Unit 1: Normalization & Deduplication
-    const allUrls = [...new Set(validUrls.map(normalizeUrl))];
-
-    // Unit 2: Isolated Rate Limiting
+    // Filter unique URLs and perform pre-flight checks (Rate Limit & Private IP)
+    const uniqueUrls = [...new Set(validUrls)];
     const toFetch: string[] = [];
-    const rateLimited: string[] = [];
-    for (const url of allUrls) {
-      const rateLimitResult = checkRateLimit(url);
-      if (rateLimitResult.allowed) {
-        toFetch.push(url);
-      } else {
-        rateLimited.push(url);
+    const skipped: string[] = [];
+
+    for (const url of uniqueUrls) {
+      if (isPrivateIp(url)) {
+        skipped.push(`[Private IP] ${url}`);
+        continue;
       }
+      if (!checkRateLimit(url).allowed) {
+        skipped.push(`[Rate Limit] ${url}`);
+        continue;
+      }
+      toFetch.push(url);
     }
 
-    if (toFetch.length === 0 && rateLimited.length > 0) {
-      const errorMessage = `Rate limit exceeded for all requested hosts.`;
+    // If everything was skipped, fail early
+    if (toFetch.length === 0 && skipped.length > 0) {
+      const errorMessage = `All requested URLs were skipped: ${skipped.join(', ')}`;
       return {
         llmContent: `Error: ${errorMessage}`,
         returnDisplay: `Error: ${errorMessage}`,
@@ -672,154 +578,91 @@ Response: ${truncateString(rawResponseText, 10000, '\n\n... [Error response trun
       };
     }
 
-    const publicUrls = toFetch.filter((url) => !isPrivateIp(url));
-    const privateUrls = toFetch.filter((url) => isPrivateIp(url));
+    try {
+      const geminiClient = this.config.getGeminiClient();
+      const response = await geminiClient.generateContent(
+        { model: 'web-fetch' },
+        [{ role: 'user', parts: [{ text: userPrompt }] }],
+        signal,
+        LlmRole.UTILITY_TOOL,
+      );
 
-    if (privateUrls.length > 0) {
+      let responseText = getResponseText(response) || '';
+      const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+
+      // Simple primary success check: we need some text or grounding data
+      if (!responseText.trim() && !groundingMetadata?.groundingChunks?.length) {
+        throw new Error('Primary fetch returned no content');
+      }
+
+      // 1. Apply Grounding Supports (Citations)
+      const rawGroundingSupports = groundingMetadata?.groundingSupports;
+      const groundingSupports = Array.isArray(rawGroundingSupports)
+        ? rawGroundingSupports.filter(
+            (item): item is GroundingSupportItem =>
+              typeof item === 'object' && item !== null,
+          )
+        : undefined;
+      if (groundingSupports && groundingSupports.length > 0) {
+        const insertions: Array<{ index: number; marker: string }> = [];
+        groundingSupports.forEach((support) => {
+          if (support.segment && support.groundingChunkIndices) {
+            const citationMarker = support.groundingChunkIndices
+              .map((chunkIndex: number) => `[${chunkIndex + 1}]`)
+              .join('');
+            insertions.push({
+              index: support.segment.endIndex,
+              marker: citationMarker,
+            });
+          }
+        });
+
+        insertions.sort((a, b) => b.index - a.index);
+        const responseChars = responseText.split('');
+        insertions.forEach((insertion) => {
+          responseChars.splice(insertion.index, 0, insertion.marker);
+        });
+        responseText = responseChars.join('');
+      }
+
+      // 2. Append Source List
+      const rawSources = groundingMetadata?.groundingChunks;
+      const sources = Array.isArray(rawSources)
+        ? rawSources.filter(
+            (item): item is GroundingChunkItem =>
+              typeof item === 'object' && item !== null,
+          )
+        : undefined;
+      if (sources && sources.length > 0) {
+        const sourceListFormatted: string[] = [];
+        sources.forEach((source, index) => {
+          const title = source.web?.title || 'Untitled';
+          const uri = source.web?.uri || 'Unknown URI';
+          sourceListFormatted.push(`[${index + 1}] ${title} (${uri})`);
+        });
+        responseText += `\n\nSources:\n${sourceListFormatted.join('\n')}`;
+      }
+
+      // 3. Prepend Warnings for skipped URLs
+      if (skipped.length > 0) {
+        responseText = `[Warning] The following URLs were skipped:\n${skipped.join('\n')}\n\n${responseText}`;
+      }
+
+      return {
+        llmContent: responseText,
+        returnDisplay: `Content processed from prompt.`,
+      };
+    } catch (error: unknown) {
+      debugLogger.warn(
+        `[WebFetchTool] Primary fetch failed, falling back: ${getErrorMessage(error)}`,
+      );
       logWebFetchFallbackAttempt(
         this.config,
-        new WebFetchFallbackAttemptEvent('private_ip_skipped'),
+        new WebFetchFallbackAttemptEvent('primary_failed'),
       );
+      // Simple All-or-Nothing Fallback
+      return this.executeFallback(toFetch, signal);
     }
-
-    let llmContent = '';
-    let returnDisplay = '';
-    const needsRescue: string[] = [];
-
-    if (publicUrls.length > 0) {
-      const geminiClient = this.config.getGeminiClient();
-      try {
-        const response = await geminiClient.generateContent(
-          { model: 'web-fetch' },
-          [{ role: 'user', parts: [{ text: userPrompt }] }],
-          signal,
-          LlmRole.UTILITY_TOOL,
-        );
-
-        let responseText = getResponseText(response) || '';
-        const rawUrlContextMeta = response.candidates?.[0]?.urlContextMetadata;
-        const urlContextMeta =
-          rawUrlContextMeta &&
-          typeof rawUrlContextMeta === 'object' &&
-          'urlMetadata' in rawUrlContextMeta &&
-          Array.isArray(rawUrlContextMeta.urlMetadata)
-            ? (rawUrlContextMeta as UrlContextMetadata)
-            : undefined;
-
-        const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
-        const sources = groundingMetadata?.groundingChunks as
-          | GroundingChunkItem[]
-          | undefined;
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        const groundingSupports = groundingMetadata?.groundingSupports as
-          | GroundingSupportItem[]
-          | undefined;
-
-        // Error Handling & Rescue identification
-        let processingError = false;
-
-        if (
-          urlContextMeta?.urlMetadata &&
-          urlContextMeta.urlMetadata.length > 0
-        ) {
-          const allStatuses = urlContextMeta.urlMetadata.map(
-            (m) => m.urlRetrievalStatus,
-          );
-          if (allStatuses.every((s) => s !== 'URL_RETRIEVAL_STATUS_SUCCESS')) {
-            processingError = true;
-          }
-
-          // Unit 3: Identify specific URLs that need rescue
-          for (const meta of urlContextMeta.urlMetadata) {
-            if (
-              meta.urlRetrievalStatus !== 'URL_RETRIEVAL_STATUS_SUCCESS' &&
-              meta.url
-            ) {
-              needsRescue.push(meta.url);
-            }
-          }
-        } else if (!responseText.trim() && !sources?.length) {
-          processingError = true;
-        }
-
-        if (
-          !processingError &&
-          !responseText.trim() &&
-          (!sources || sources.length === 0)
-        ) {
-          processingError = true;
-        }
-
-        if (processingError) {
-          logWebFetchFallbackAttempt(
-            this.config,
-            new WebFetchFallbackAttemptEvent('primary_failed'),
-          );
-          // If primary failed completely, rescue all public URLs that were supposed to be fetched
-          needsRescue.push(...publicUrls);
-        } else {
-          // Process grounding if successful
-          responseText = this.applyGroundingSupport(
-            responseText,
-            groundingSupports,
-          );
-          responseText += this.formatSourceList(sources);
-
-          llmContent = responseText;
-          returnDisplay = `Content processed from prompt.`;
-        }
-      } catch (error: unknown) {
-        debugLogger.error(
-          `[WebFetchTool] Primary fetch failed: ${getErrorMessage(error)}`,
-        );
-        needsRescue.push(...publicUrls);
-      }
-    }
-
-    // Unit 3: Surgical Fallback ("The Rescue")
-    if (needsRescue.length > 0) {
-      const aggregatedRescuedContent = await this.aggregateRescuedContent(
-        needsRescue,
-        signal,
-      );
-
-      if (!llmContent) {
-        // If no primary content, use executeFallback logic to process all rescued content via Gemini
-        return this.executeFallback(needsRescue, signal);
-      } else {
-        // If we have some primary content, append the rescued content as additional information
-        llmContent += `\n\n--- Rescued Content ---\n${aggregatedRescuedContent}`;
-        returnDisplay += ` (with ${needsRescue.length} rescued URL(s))`;
-      }
-    }
-
-    // Unit 2: Append rate limiting and private IP warnings
-    const warnings: string[] = [];
-    if (rateLimited.length > 0) {
-      warnings.push(
-        `[Warning] The following URLs were skipped due to rate limiting: ${rateLimited.join(
-          ', ',
-        )}`,
-      );
-    }
-    if (privateUrls.length > 0) {
-      warnings.push(
-        `[Warning] The following URLs were skipped because they point to private IP addresses: ${privateUrls.join(
-          ', ',
-        )}`,
-      );
-    }
-
-    if (warnings.length > 0) {
-      const combinedWarning = warnings.join('\n');
-      llmContent = `${combinedWarning}\n\n${llmContent}`;
-      returnDisplay = `${returnDisplay} (${rateLimited.length + privateUrls.length} URL(s) skipped)`;
-    }
-
-    return {
-      llmContent,
-      returnDisplay,
-    };
   }
 }
 

@@ -9,7 +9,6 @@ import {
   WebFetchTool,
   parsePrompt,
   convertGithubUrlToRaw,
-  normalizeUrl,
 } from './web-fetch.js';
 import type { Config } from '../config/config.js';
 import { ApprovalMode } from '../policy/types.js';
@@ -199,35 +198,6 @@ describe('parsePrompt', () => {
   });
 });
 
-describe('normalizeUrl', () => {
-  it('should lowercase hostname', () => {
-    expect(normalizeUrl('https://EXAMPLE.COM')).toBe('https://example.com/');
-  });
-
-  it('should remove trailing slashes from path', () => {
-    expect(normalizeUrl('https://example.com/path/')).toBe(
-      'https://example.com/path',
-    );
-  });
-
-  it('should not remove trailing slash from root', () => {
-    expect(normalizeUrl('https://example.com/')).toBe('https://example.com/');
-  });
-
-  it('should remove default ports', () => {
-    expect(normalizeUrl('http://example.com:80/')).toBe('http://example.com/');
-    expect(normalizeUrl('https://example.com:443/')).toBe(
-      'https://example.com/',
-    );
-  });
-
-  it('should keep non-default ports', () => {
-    expect(normalizeUrl('http://example.com:8080/')).toBe(
-      'http://example.com:8080/',
-    );
-  });
-});
-
 describe('convertGithubUrlToRaw', () => {
   it('should convert valid github blob urls', () => {
     expect(
@@ -384,7 +354,9 @@ describe('WebFetchTool', () => {
       // The 11th time should fail due to rate limit
       const result = await invocation.execute(new AbortController().signal);
       expect(result.error?.type).toBe(ToolErrorType.WEB_FETCH_PROCESSING_ERROR);
-      expect(result.error?.message).toContain('Rate limit exceeded');
+      expect(result.error?.message).toContain(
+        'All requested URLs were skipped',
+      );
     });
 
     it('should skip rate-limited URLs but fetch others', async () => {
@@ -417,73 +389,63 @@ describe('WebFetchTool', () => {
       const result = await invocation.execute(new AbortController().signal);
       expect(result.llmContent).toContain('healthy response');
       expect(result.llmContent).toContain(
-        '[Warning] The following URLs were skipped due to rate limiting: https://ratelimit-multi.com/',
+        '[Warning] The following URLs were skipped:',
       );
-      expect(result.returnDisplay).toContain('(1 URL(s) skipped)');
+      expect(result.llmContent).toContain(
+        '[Rate Limit] https://ratelimit-multi.com/',
+      );
     });
 
-    it('should rescue failed public URLs via fallback', async () => {
+    it('should fallback to all public URLs if primary fails', async () => {
       vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
 
-      // Primary fetch fails for one URL
-      mockGenerateContent.mockResolvedValueOnce({
-        candidates: [
-          {
-            content: { parts: [{ text: 'Only partial info' }] },
-            urlContextMetadata: {
-              urlMetadata: [
-                {
-                  url: 'https://success.com/',
-                  urlRetrievalStatus: 'URL_RETRIEVAL_STATUS_SUCCESS',
-                },
-                {
-                  url: 'https://fail.com/',
-                  urlRetrievalStatus: 'URL_RETRIEVAL_STATUS_FAILED',
-                },
-              ],
-            },
-          },
-        ],
+      // Primary fetch fails
+      mockGenerateContent.mockRejectedValueOnce(new Error('primary fail'));
+
+      // Mock fallback fetch for BOTH URLs
+      mockFetch('https://url1.com/', {
+        text: () => Promise.resolve('content 1'),
+      });
+      mockFetch('https://url2.com/', {
+        text: () => Promise.resolve('content 2'),
       });
 
-      // Mock fallback fetch for the failed URL
-      mockFetch('https://fail.com/', {
-        text: () => Promise.resolve('rescued content'),
+      // Mock fallback LLM call
+      mockGenerateContent.mockResolvedValueOnce({
+        candidates: [
+          { content: { parts: [{ text: 'fallback processed response' }] } },
+        ],
       });
 
       const tool = new WebFetchTool(mockConfig, bus);
       const params = {
-        prompt: 'fetch https://success.com and https://fail.com',
+        prompt: 'fetch https://url1.com and https://url2.com',
       };
       const invocation = tool.build(params);
       const result = await invocation.execute(new AbortController().signal);
 
-      expect(result.llmContent).toContain('Only partial info');
-      expect(result.llmContent).toContain('--- Rescued Content ---');
-      expect(result.llmContent).toContain('URL: https://fail.com/');
-      expect(result.llmContent).toContain('rescued content');
+      expect(result.llmContent).toBe('fallback processed response');
+      expect(result.returnDisplay).toContain(
+        '2 URL(s) processed using fallback fetch',
+      );
     });
 
-    it('should NOT rescue private URLs via fallback but still fetch public ones', async () => {
+    it('should NOT include private URLs in fallback', async () => {
       vi.mocked(fetchUtils.isPrivateIp).mockImplementation(
         (url) => url === 'https://private.com/',
       );
 
-      // Primary fetch for public URL
+      // Primary fetch fails
+      mockGenerateContent.mockRejectedValueOnce(new Error('primary fail'));
+
+      // Mock fallback fetch only for public URL
+      mockFetch('https://public.com/', {
+        text: () => Promise.resolve('public content'),
+      });
+
+      // Mock fallback LLM call
       mockGenerateContent.mockResolvedValueOnce({
-        candidates: [
-          {
-            content: { parts: [{ text: 'public content' }] },
-            urlContextMetadata: {
-              urlMetadata: [
-                {
-                  url: 'https://public.com/',
-                  urlRetrievalStatus: 'URL_RETRIEVAL_STATUS_SUCCESS',
-                },
-              ],
-            },
-          },
-        ],
+        candidates: [{ content: { parts: [{ text: 'fallback response' }] } }],
       });
 
       const tool = new WebFetchTool(mockConfig, bus);
@@ -493,12 +455,8 @@ describe('WebFetchTool', () => {
       const invocation = tool.build(params);
       const result = await invocation.execute(new AbortController().signal);
 
-      expect(result.llmContent).toContain('public content');
-      expect(result.llmContent).not.toContain('--- Rescued Content ---');
-      expect(result.llmContent).toContain(
-        '[Warning] The following URLs were skipped because they point to private IP addresses: https://private.com/',
-      );
-      expect(result.returnDisplay).toContain('(1 URL(s) skipped)');
+      expect(result.llmContent).toBe('fallback response');
+      // Verify private URL was NOT fetched (mockFetch would throw if it was called for private.com)
     });
 
     it('should return WEB_FETCH_FALLBACK_FAILED on fallback fetch failure', async () => {
@@ -520,23 +478,6 @@ describe('WebFetchTool', () => {
       const invocation = tool.build(params);
       const result = await invocation.execute(new AbortController().signal);
       expect(result.error?.type).toBe(ToolErrorType.WEB_FETCH_FALLBACK_FAILED);
-    });
-
-    it('should log telemetry when falling back due to private IP', async () => {
-      vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(true);
-
-      const tool = new WebFetchTool(mockConfig, bus);
-      const params = { prompt: 'fetch https://private.ip' };
-      const invocation = tool.build(params);
-      await invocation.execute(new AbortController().signal);
-
-      expect(logWebFetchFallbackAttempt).toHaveBeenCalledWith(
-        mockConfig,
-        expect.any(WebFetchFallbackAttemptEvent),
-      );
-      expect(WebFetchFallbackAttemptEvent).toHaveBeenCalledWith(
-        'private_ip_skipped',
-      );
     });
 
     it('should log telemetry when falling back due to primary fetch failure', async () => {
