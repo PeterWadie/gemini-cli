@@ -229,6 +229,7 @@ class WebFetchToolInvocation extends BaseToolInvocation<
   ): Promise<string> {
     const url = convertGithubUrlToRaw(urlStr);
     if (this.isBlockedHost(url)) {
+      debugLogger.warn(`[WebFetchTool] Blocked access to host: ${url}`);
       return `Error fetching ${url}: Access to blocked or private host is not allowed.`;
     }
 
@@ -320,13 +321,29 @@ ${aggregatedContent}
         signal,
         LlmRole.UTILITY_TOOL,
       );
+
+      debugLogger.debug(
+        `[WebFetchTool] Fallback response for prompt "${this.params.prompt?.substring(
+          0,
+          50,
+        )}...":`,
+        JSON.stringify(result, null, 2),
+      );
+
       const resultText = getResponseText(result) || '';
+
+      debugLogger.debug(
+        `[WebFetchTool] Formatted fallback tool response for prompt "${this.params.prompt}":\n\n`,
+        resultText,
+      );
+
       return {
         llmContent: resultText,
         returnDisplay: `Content for ${urls.length} URL(s) processed using fallback fetch.`,
       };
     } catch (e) {
       const errorMessage = `Error during fallback processing: ${getErrorMessage(e)}`;
+      debugLogger.error(`[WebFetchTool] Fallback failed: ${errorMessage}`);
       return {
         llmContent: `Error: ${errorMessage}`,
         returnDisplay: `Error: ${errorMessage}`,
@@ -449,6 +466,9 @@ ${aggregatedContent}
 
     if (this.isBlockedHost(url)) {
       const errorMessage = `Access to blocked or private host ${url} is not allowed.`;
+      debugLogger.warn(
+        `[WebFetchTool] Blocked experimental fetch to host: ${url}`,
+      );
       return {
         llmContent: `Error: ${errorMessage}`,
         returnDisplay: `Error: ${errorMessage}`,
@@ -494,6 +514,9 @@ ${aggregatedContent}
         const errorContent = `Request failed with status ${status}
 Headers: ${JSON.stringify(headers, null, 2)}
 Response: ${truncateString(rawResponseText, 10000, '\n\n... [Error response truncated] ...')}`;
+        debugLogger.error(
+          `[WebFetchTool] Experimental fetch failed with status ${status} for ${url}`,
+        );
         return {
           llmContent: errorContent,
           returnDisplay: `Failed to fetch ${url} (Status: ${status})`,
@@ -564,6 +587,9 @@ Response: ${truncateString(rawResponseText, 10000, '\n\n... [Error response trun
       };
     } catch (e) {
       const errorMessage = `Error during experimental fetch for ${url}: ${getErrorMessage(e)}`;
+      debugLogger.error(
+        `[WebFetchTool] Experimental fetch error: ${errorMessage}`,
+      );
       return {
         llmContent: `Error: ${errorMessage}`,
         returnDisplay: `Error: ${errorMessage}`,
@@ -589,10 +615,14 @@ Response: ${truncateString(rawResponseText, 10000, '\n\n... [Error response trun
 
     for (const url of uniqueUrls) {
       if (this.isBlockedHost(url)) {
+        debugLogger.warn(
+          `[WebFetchTool] Skipped private or local host: ${url}`,
+        );
         skipped.push(`[Private or Local Host] ${url}`);
         continue;
       }
       if (!checkRateLimit(url).allowed) {
+        debugLogger.warn(`[WebFetchTool] Rate limit exceeded for host: ${url}`);
         skipped.push(`[Rate Limit] ${url}`);
         continue;
       }
@@ -602,6 +632,7 @@ Response: ${truncateString(rawResponseText, 10000, '\n\n... [Error response trun
     // If everything was skipped, fail early
     if (toFetch.length === 0 && skipped.length > 0) {
       const errorMessage = `All requested URLs were skipped: ${skipped.join(', ')}`;
+      debugLogger.error(`[WebFetchTool] ${errorMessage}`);
       return {
         llmContent: `Error: ${errorMessage}`,
         returnDisplay: `Error: ${errorMessage}`,
@@ -619,6 +650,14 @@ Response: ${truncateString(rawResponseText, 10000, '\n\n... [Error response trun
         [{ role: 'user', parts: [{ text: userPrompt }] }],
         signal,
         LlmRole.UTILITY_TOOL,
+      );
+
+      debugLogger.debug(
+        `[WebFetchTool] Full response for prompt "${userPrompt.substring(
+          0,
+          50,
+        )}...":`,
+        JSON.stringify(response, null, 2),
       );
 
       let responseText = getResponseText(response) || '';
@@ -681,6 +720,11 @@ Response: ${truncateString(rawResponseText, 10000, '\n\n... [Error response trun
       if (skipped.length > 0) {
         responseText = `[Warning] The following URLs were skipped:\n${skipped.join('\n')}\n\n${responseText}`;
       }
+
+      debugLogger.debug(
+        `[WebFetchTool] Formatted tool response for prompt "${userPrompt}":\n\n`,
+        responseText,
+      );
 
       return {
         llmContent: responseText,
