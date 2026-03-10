@@ -9,6 +9,7 @@ import {
   WebFetchTool,
   parsePrompt,
   convertGithubUrlToRaw,
+  normalizeUrl,
 } from './web-fetch.js';
 import type { Config } from '../config/config.js';
 import { ApprovalMode } from '../policy/types.js';
@@ -124,6 +125,35 @@ const mockFetch = (url: string, response: Partial<Response> | Error) =>
         ...response,
       } as unknown as Response;
     });
+
+describe('normalizeUrl', () => {
+  it('should lowercase hostname', () => {
+    expect(normalizeUrl('https://EXAMPLE.com/Path')).toBe(
+      'https://example.com/Path',
+    );
+  });
+
+  it('should remove trailing slash except for root', () => {
+    expect(normalizeUrl('https://example.com/path/')).toBe(
+      'https://example.com/path',
+    );
+    expect(normalizeUrl('https://example.com/')).toBe('https://example.com/');
+  });
+
+  it('should remove default ports', () => {
+    expect(normalizeUrl('http://example.com:80/')).toBe('http://example.com/');
+    expect(normalizeUrl('https://example.com:443/')).toBe(
+      'https://example.com/',
+    );
+    expect(normalizeUrl('https://example.com:8443/')).toBe(
+      'https://example.com:8443/',
+    );
+  });
+
+  it('should handle invalid URLs gracefully', () => {
+    expect(normalizeUrl('not-a-url')).toBe('not-a-url');
+  });
+});
 
 describe('parsePrompt', () => {
   it('should extract valid URLs separated by whitespace', () => {
@@ -396,6 +426,35 @@ describe('WebFetchTool', () => {
       );
     });
 
+    it('should skip private or local URLs but fetch others', async () => {
+      vi.mocked(fetchUtils.isPrivateIp).mockImplementation(
+        (url) => url === 'https://private.com/',
+      );
+
+      const tool = new WebFetchTool(mockConfig, bus);
+      const params = {
+        prompt:
+          'fetch https://private.com and https://healthy.com and http://localhost',
+      };
+      const invocation = tool.build(params);
+
+      mockGenerateContent.mockResolvedValueOnce({
+        candidates: [{ content: { parts: [{ text: 'healthy response' }] } }],
+      });
+
+      const result = await invocation.execute(new AbortController().signal);
+      expect(result.llmContent).toContain('healthy response');
+      expect(result.llmContent).toContain(
+        '[Warning] The following URLs were skipped:',
+      );
+      expect(result.llmContent).toContain(
+        '[Private or Local Host] https://private.com/',
+      );
+      expect(result.llmContent).toContain(
+        '[Private or Local Host] http://localhost',
+      );
+    });
+
     it('should fallback to all public URLs if primary fails', async () => {
       vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
 
@@ -419,7 +478,7 @@ describe('WebFetchTool', () => {
 
       const tool = new WebFetchTool(mockConfig, bus);
       const params = {
-        prompt: 'fetch https://url1.com and https://url2.com',
+        prompt: 'fetch https://url1.com and https://url2.com/',
       };
       const invocation = tool.build(params);
       const result = await invocation.execute(new AbortController().signal);
@@ -450,7 +509,7 @@ describe('WebFetchTool', () => {
 
       const tool = new WebFetchTool(mockConfig, bus);
       const params = {
-        prompt: 'fetch https://public.com and https://private.com',
+        prompt: 'fetch https://public.com/ and https://private.com',
       };
       const invocation = tool.build(params);
       const result = await invocation.execute(new AbortController().signal);
@@ -971,13 +1030,13 @@ describe('WebFetchTool', () => {
     });
 
     it('should throw error if stream exceeds limit', async () => {
-      const largeChunk = new Uint8Array(11 * 1024 * 1024);
+      const large_chunk = new Uint8Array(11 * 1024 * 1024);
       mockFetch('https://example.com/large-stream', {
         body: {
           getReader: () => ({
             read: vi
               .fn()
-              .mockResolvedValueOnce({ done: false, value: largeChunk })
+              .mockResolvedValueOnce({ done: false, value: large_chunk })
               .mockResolvedValueOnce({ done: true }),
             releaseLock: vi.fn(),
             cancel: vi.fn().mockResolvedValue(undefined),
@@ -1025,7 +1084,7 @@ describe('WebFetchTool', () => {
       const result = await invocation.execute(new AbortController().signal);
 
       expect(result.llmContent).toContain(
-        'Error: Access to private IP address http://localhost/ is not allowed.',
+        'Error: Access to blocked or private host http://localhost/ is not allowed.',
       );
       expect(result.error?.type).toBe(ToolErrorType.WEB_FETCH_PROCESSING_ERROR);
     });

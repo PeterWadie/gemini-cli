@@ -77,6 +77,31 @@ function checkRateLimit(url: string): {
 }
 
 /**
+ * Normalizes a URL by converting hostname to lowercase, removing trailing slashes,
+ * and removing default ports.
+ */
+export function normalizeUrl(urlStr: string): string {
+  try {
+    const url = new URL(urlStr);
+    url.hostname = url.hostname.toLowerCase();
+    // Remove trailing slash if present in pathname (except for root '/')
+    if (url.pathname.endsWith('/') && url.pathname.length > 1) {
+      url.pathname = url.pathname.slice(0, -1);
+    }
+    // Remove default ports
+    if (
+      (url.protocol === 'http:' && url.port === '80') ||
+      (url.protocol === 'https:' && url.port === '443')
+    ) {
+      url.port = '';
+    }
+    return url.href;
+  } catch {
+    return urlStr;
+  }
+}
+
+/**
  * Parses a prompt to extract valid URLs and identify malformed ones.
  */
 export function parsePrompt(text: string): {
@@ -184,14 +209,27 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     super(params, messageBus, _toolName, _toolDisplayName);
   }
 
+  private isBlockedHost(urlStr: string): boolean {
+    try {
+      const url = new URL(urlStr);
+      const hostname = url.hostname.toLowerCase();
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return true;
+      }
+      return isPrivateIp(urlStr);
+    } catch {
+      return true;
+    }
+  }
+
   private async executeFallbackForUrl(
     urlStr: string,
     signal: AbortSignal,
     contentBudget: number,
   ): Promise<string> {
     const url = convertGithubUrlToRaw(urlStr);
-    if (isPrivateIp(url)) {
-      return `Error fetching ${url}: Access to private IP address is not allowed.`;
+    if (this.isBlockedHost(url)) {
+      return `Error fetching ${url}: Access to blocked or private host is not allowed.`;
     }
 
     try {
@@ -245,9 +283,7 @@ class WebFetchToolInvocation extends BaseToolInvocation<
 
       return truncateString(textContent, contentBudget, TRUNCATION_WARNING);
     } catch (e) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      const error = e as Error;
-      return `Error fetching ${url}: ${error.message}`;
+      return `Error fetching ${url}: ${getErrorMessage(e)}`;
     }
   }
 
@@ -290,9 +326,7 @@ ${aggregatedContent}
         returnDisplay: `Content for ${urls.length} URL(s) processed using fallback fetch.`,
       };
     } catch (e) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      const error = e as Error;
-      const errorMessage = `Error during fallback processing: ${error.message}`;
+      const errorMessage = `Error during fallback processing: ${getErrorMessage(e)}`;
       return {
         llmContent: `Error: ${errorMessage}`,
         returnDisplay: `Error: ${errorMessage}`,
@@ -413,8 +447,8 @@ ${aggregatedContent}
     // Convert GitHub blob URL to raw URL
     url = convertGithubUrlToRaw(url);
 
-    if (isPrivateIp(url)) {
-      const errorMessage = `Access to private IP address ${url} is not allowed.`;
+    if (this.isBlockedHost(url)) {
+      const errorMessage = `Access to blocked or private host ${url} is not allowed.`;
       return {
         llmContent: `Error: ${errorMessage}`,
         returnDisplay: `Error: ${errorMessage}`,
@@ -548,14 +582,14 @@ Response: ${truncateString(rawResponseText, 10000, '\n\n... [Error response trun
     const userPrompt = this.params.prompt!;
     const { validUrls } = parsePrompt(userPrompt);
 
-    // Filter unique URLs and perform pre-flight checks (Rate Limit & Private IP)
-    const uniqueUrls = [...new Set(validUrls)];
+    // Unit 1: Normalization & Deduplication
+    const uniqueUrls = [...new Set(validUrls.map(normalizeUrl))];
     const toFetch: string[] = [];
     const skipped: string[] = [];
 
     for (const url of uniqueUrls) {
-      if (isPrivateIp(url)) {
-        skipped.push(`[Private IP] ${url}`);
+      if (this.isBlockedHost(url)) {
+        skipped.push(`[Private or Local Host] ${url}`);
         continue;
       }
       if (!checkRateLimit(url).allowed) {
