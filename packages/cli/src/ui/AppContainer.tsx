@@ -2018,7 +2018,7 @@ Logging in with Google... Restarting Gemini CLI to continue.
 
   const loadingPhrases = settings.merged.ui.loadingPhrases;
 
-  const isExperimentalLayout = true;
+  const isExperimentalLayout = settings.merged.ui.footerLayoutRefresh === true;
   const showLoadingIndicator =
     (!embeddedShellFocused || isBackgroundShellVisible) &&
     streamingState === StreamingState.Responding &&

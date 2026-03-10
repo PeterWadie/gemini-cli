@@ -2198,17 +2198,17 @@ describe('Settings Loading and Merging', () => {
         }),
       );
 
-      // Check that enableLoadingPhrases: false was further migrated to loadingPhraseLayout: 'none'
+      // Check that enableLoadingPhrases: false was further migrated to loadingPhrases: 'off'
       expect(setValueSpy).toHaveBeenCalledWith(
         SettingScope.User,
         'ui',
         expect.objectContaining({
-          loadingPhraseLayout: 'none',
+          loadingPhrases: 'off',
         }),
       );
     });
 
-    it('should migrate enableLoadingPhrases: false to loadingPhraseLayout: none', () => {
+    it('should migrate enableLoadingPhrases: false to loadingPhrases: off', () => {
       const userSettingsContent = {
         ui: {
           accessibility: {
@@ -2226,12 +2226,12 @@ describe('Settings Loading and Merging', () => {
         SettingScope.User,
         'ui',
         expect.objectContaining({
-          loadingPhraseLayout: 'none',
+          loadingPhrases: 'off',
         }),
       );
     });
 
-    it('should not migrate enableLoadingPhrases: true to loadingPhraseLayout', () => {
+    it('should not migrate enableLoadingPhrases: true to loadingPhrases', () => {
       const userSettingsContent = {
         ui: {
           accessibility: {
@@ -2245,18 +2245,18 @@ describe('Settings Loading and Merging', () => {
 
       migrateDeprecatedSettings(loadedSettings);
 
-      // Should not set loadingPhraseLayout when enableLoadingPhrases is true
+      // Should not set loadingPhrases when enableLoadingPhrases is true
       const uiCalls = setValueSpy.mock.calls.filter((call) => call[1] === 'ui');
       for (const call of uiCalls) {
         const uiValue = call[2] as Record<string, unknown>;
-        expect(uiValue).not.toHaveProperty('loadingPhraseLayout');
+        expect(uiValue).not.toHaveProperty('loadingPhrases');
       }
     });
 
-    it('should not overwrite existing loadingPhraseLayout during migration', () => {
+    it('should not overwrite existing loadingPhrases during migration', () => {
       const userSettingsContent = {
         ui: {
-          loadingPhraseLayout: 'wit_inline',
+          loadingPhrases: 'witty',
           accessibility: {
             enableLoadingPhrases: false,
           },
@@ -2268,12 +2268,12 @@ describe('Settings Loading and Merging', () => {
 
       migrateDeprecatedSettings(loadedSettings);
 
-      // Should not overwrite existing loadingPhraseLayout
+      // Should not overwrite existing loadingPhrases
       const uiCalls = setValueSpy.mock.calls.filter((call) => call[1] === 'ui');
       for (const call of uiCalls) {
         const uiValue = call[2] as Record<string, unknown>;
-        if (uiValue['loadingPhraseLayout'] !== undefined) {
-          expect(uiValue['loadingPhraseLayout']).toBe('wit_inline');
+        if (uiValue['loadingPhrases'] !== undefined) {
+          expect(uiValue['loadingPhrases']).toBe('witty');
         }
       }
     });

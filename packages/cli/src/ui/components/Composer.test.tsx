@@ -404,13 +404,13 @@ describe('Composer', () => {
       expect(output).not.toContain('ShortcutsHint');
     });
 
-    it('renders LoadingIndicator with thought when loadingPhraseLayout is none', async () => {
+    it('renders LoadingIndicator with thought when loadingPhrases is off', async () => {
       const uiState = createMockUIState({
         streamingState: StreamingState.Responding,
         thought: { subject: 'Hidden', description: 'Should not show' },
       });
       const settings = createMockSettings({
-        merged: { ui: { loadingPhraseLayout: 'none', useLegacyLayout: true } },
+        merged: { ui: { loadingPhrases: 'off', footerLayoutRefresh: false } },
       });
 
       const { lastFrame } = await renderComposer(uiState, settings);

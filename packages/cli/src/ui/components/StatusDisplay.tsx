@@ -31,8 +31,7 @@ export const StatusDisplay: React.FC<StatusDisplayProps> = ({
   // In legacy layout, we show hooks here.
   // In experimental layout, hooks are shown in the top row of the composer,
   // but we still show them here if they are "system" hooks or if notifications are enabled.
-  const isLegacyLayout =
-    (settings.merged.ui as Record<string, unknown>)['useLegacyLayout'] === true;
+  const isLegacyLayout = !settings.merged.ui.footerLayoutRefresh;
 
   if (
     isLegacyLayout &&
