@@ -175,6 +175,7 @@ export class SlashCommandResolver {
   private static getPrefix(cmd: SlashCommand): string | undefined {
     switch (cmd.kind) {
       case CommandKind.EXTENSION_FILE:
+      case CommandKind.SKILL:
         return cmd.extensionName;
       case CommandKind.MCP_PROMPT:
         return cmd.mcpServerName;
@@ -186,7 +187,6 @@ export class SlashCommandResolver {
         return undefined;
     }
   }
-
   /**
    * Logs a conflict event.
    */
