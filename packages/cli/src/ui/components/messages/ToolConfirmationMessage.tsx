@@ -741,7 +741,7 @@ export const ToolConfirmationMessage: React.FC<
             <Text color={theme.text.primary}>{question}</Text>
           </Box>
 
-          <Box flexShrink={0}>
+          <Box flexShrink={0} flexDirection="column">
             <RadioButtonSelect
               items={options}
               onSelect={handleSelect}
