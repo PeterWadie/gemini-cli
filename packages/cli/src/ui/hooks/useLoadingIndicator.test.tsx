@@ -16,6 +16,7 @@ import {
 import { WITTY_LOADING_PHRASES } from '../constants/wittyPhrases.js';
 import { INFORMATIVE_TIPS } from '../constants/tips.js';
 import type { RetryAttemptPayload } from '@google/gemini-cli-core';
+import type { LoadingPhrasesMode } from '../../config/settings.js';
 
 describe('useLoadingIndicator', () => {
   beforeEach(() => {
@@ -33,7 +34,7 @@ describe('useLoadingIndicator', () => {
     initialStreamingState: StreamingState,
     initialShouldShowFocusHint: boolean = false,
     initialRetryStatus: RetryAttemptPayload | null = null,
-    loadingPhrases: 'tips' | 'witty' | 'all' | 'off' = 'all',
+    loadingPhrases: LoadingPhrasesMode = 'all',
     initialErrorVerbosity: 'low' | 'full' = 'full',
   ) => {
     let hookResult: ReturnType<typeof useLoadingIndicator>;
@@ -47,14 +48,14 @@ describe('useLoadingIndicator', () => {
       streamingState: StreamingState;
       shouldShowFocusHint?: boolean;
       retryStatus?: RetryAttemptPayload | null;
-      loadingPhrases?: 'tips' | 'witty' | 'all' | 'off';
+      loadingPhrases?: LoadingPhrasesMode;
       errorVerbosity?: 'low' | 'full';
     }) {
       hookResult = useLoadingIndicator({
         streamingState,
         shouldShowFocusHint: !!shouldShowFocusHint,
         retryStatus: retryStatus || null,
-        loadingPhrases,
+        loadingPhrasesMode: loadingPhrases,
         errorVerbosity,
       });
       return null;
@@ -78,7 +79,7 @@ describe('useLoadingIndicator', () => {
         streamingState: StreamingState;
         shouldShowFocusHint?: boolean;
         retryStatus?: RetryAttemptPayload | null;
-        loadingPhrases?: 'tips' | 'witty' | 'all' | 'off';
+        loadingPhrases?: LoadingPhrasesMode;
         errorVerbosity?: 'low' | 'full';
       }) =>
         rerender(

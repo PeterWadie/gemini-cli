@@ -100,7 +100,6 @@ export interface InputPromptProps {
   commandContext: CommandContext;
   placeholder?: string;
   focus?: boolean;
-  disabled?: boolean;
   inputWidth: number;
   suggestionsWidth: number;
   shellModeActive: boolean;
@@ -194,7 +193,6 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   commandContext,
   placeholder = '  Type your message or @path/to/file',
   focus = true,
-  disabled = false,
   inputWidth,
   suggestionsWidth,
   shellModeActive,
@@ -213,7 +211,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   const isHelpDismissKey = useIsHelpDismissKey();
   const keyMatchers = useKeyMatchers();
   const { stdout } = useStdout();
-  const settings = useSettings();
+  const { merged: settings } = useSettings();
   const kittyProtocol = useKittyKeyboardProtocol();
   const isShellFocused = useShellFocusState();
   const {
@@ -328,9 +326,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
     isShellSuggestionsVisible,
   } = completion;
 
-  const isFocusedAndEnabled = focus && !disabled;
-  const showCursor =
-    isFocusedAndEnabled && isShellFocused && !isEmbeddedShellFocused;
+  const showCursor = focus && isShellFocused && !isEmbeddedShellFocused;
 
   // Notify parent component about escape prompt state changes
   useEffect(() => {
@@ -494,7 +490,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         }
       }
 
-      if (settings.merged.experimental?.useOSC52Paste) {
+      if (settings.experimental?.useOSC52Paste) {
         stdout.write('\x1b]52;c;?\x07');
       } else {
         const textToInsert = await clipboardy.read();
@@ -649,10 +645,9 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       // We should probably stop supporting paste if the InputPrompt is not
       // focused.
       /// We want to handle paste even when not focused to support drag and drop.
-      if (!isFocusedAndEnabled && key.name !== 'paste') {
+      if (!focus && key.name !== 'paste') {
         return false;
       }
-      if (disabled) return false;
 
       // Handle escape to close shortcuts panel first, before letting it bubble
       // up for cancellation. This ensures pressing Escape once closes the panel,
@@ -1235,6 +1230,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       return handled;
     },
     [
+      focus,
       buffer,
       completion,
       setForceShowShellSuggestions,
@@ -1265,8 +1261,6 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       backgroundShells.size,
       backgroundShellHeight,
       streamingState,
-      disabled,
-      isFocusedAndEnabled,
       handleEscPress,
       registerPlainTabPress,
       resetPlainTabPress,
@@ -1449,7 +1443,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   }
 
   const suggestionsNode = shouldShowSuggestions ? (
-    <Box paddingX={0}>
+    <Box paddingRight={2}>
       <SuggestionsDisplay
         suggestions={activeCompletion.suggestions}
         activeIndex={activeCompletion.activeSuggestionIndex}
@@ -1472,13 +1466,10 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
     </Box>
   ) : null;
 
-  const borderColor = disabled
-    ? theme.border.default
-    : isShellFocused && !isEmbeddedShellFocused
+  const borderColor =
+    isShellFocused && !isEmbeddedShellFocused
       ? (statusColor ?? theme.ui.focus)
       : theme.border.default;
-
-  // Automatically blur the input if it's disabled.
 
   return (
     <>
@@ -1492,7 +1483,6 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           borderRight={false}
           borderColor={borderColor}
           width={terminalWidth}
-          marginLeft={0}
           flexDirection="row"
           alignItems="flex-start"
           height={0}
@@ -1502,14 +1492,11 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         backgroundBaseColor={theme.background.input}
         backgroundOpacity={1}
         useBackgroundColor={useBackgroundColor}
-        marginX={0}
       >
         <Box
+          flexGrow={1}
           flexDirection="row"
           paddingX={1}
-          backgroundColor={
-            useBackgroundColor ? theme.background.input : undefined
-          }
           borderColor={borderColor}
           borderStyle={useLineFallback ? 'round' : undefined}
           borderTop={false}
@@ -1517,31 +1504,29 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           borderLeft={!useBackgroundColor}
           borderRight={!useBackgroundColor}
         >
-          <Box flexDirection="row">
-            <Text
-              color={statusColor ?? theme.text.accent}
-              aria-label={statusText || undefined}
-            >
-              {shellModeActive ? (
-                reverseSearchActive ? (
-                  <Text
-                    color={theme.text.link}
-                    aria-label={SCREEN_READER_USER_PREFIX}
-                  >
-                    (r:){' '}
-                  </Text>
-                ) : (
-                  '!'
-                )
-              ) : commandSearchActive ? (
-                <Text color={theme.text.accent}>(r:) </Text>
-              ) : showYoloStyling ? (
-                '*'
+          <Text
+            color={statusColor ?? theme.text.accent}
+            aria-label={statusText || undefined}
+          >
+            {shellModeActive ? (
+              reverseSearchActive ? (
+                <Text
+                  color={theme.text.link}
+                  aria-label={SCREEN_READER_USER_PREFIX}
+                >
+                  (r:){' '}
+                </Text>
               ) : (
-                '>'
-              )}{' '}
-            </Text>
-          </Box>
+                '!'
+              )
+            ) : commandSearchActive ? (
+              <Text color={theme.text.accent}>(r:) </Text>
+            ) : showYoloStyling ? (
+              '*'
+            ) : (
+              '>'
+            )}{' '}
+          </Text>
           <Box flexGrow={1} flexDirection="column" ref={innerBoxRef}>
             {buffer.text.length === 0 && placeholder ? (
               showCursor ? (
@@ -1568,8 +1553,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
                   const cursorVisualRow =
                     cursorVisualRowAbsolute - scrollVisualRow;
                   const isOnCursorLine =
-                    isFocusedAndEnabled &&
-                    visualIdxInRenderedSet === cursorVisualRow;
+                    focus && visualIdxInRenderedSet === cursorVisualRow;
 
                   const renderedLine: React.ReactNode[] = [];
 
@@ -1581,8 +1565,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
                     logicalLine,
                     logicalLineIdx,
                     transformations,
-                    ...(isFocusedAndEnabled &&
-                    buffer.cursor[0] === logicalLineIdx
+                    ...(focus && buffer.cursor[0] === logicalLineIdx
                       ? [buffer.cursor[1]]
                       : []),
                   );
@@ -1720,7 +1703,6 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           borderRight={false}
           borderColor={borderColor}
           width={terminalWidth}
-          marginLeft={0}
           flexDirection="row"
           alignItems="flex-start"
           height={0}

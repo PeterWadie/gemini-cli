@@ -12,6 +12,7 @@ import {
   getDisplayString,
   type RetryAttemptPayload,
 } from '@google/gemini-cli-core';
+import type { LoadingPhrasesMode } from '../../config/settings.js';
 
 const LOW_VERBOSITY_RETRY_HINT_ATTEMPT_THRESHOLD = 2;
 
@@ -19,7 +20,7 @@ export interface UseLoadingIndicatorProps {
   streamingState: StreamingState;
   shouldShowFocusHint: boolean;
   retryStatus: RetryAttemptPayload | null;
-  loadingPhrases?: 'tips' | 'witty' | 'all' | 'off';
+  loadingPhrasesMode?: LoadingPhrasesMode;
   customWittyPhrases?: string[];
   errorVerbosity?: 'low' | 'full';
   maxLength?: number;
@@ -29,7 +30,7 @@ export const useLoadingIndicator = ({
   streamingState,
   shouldShowFocusHint,
   retryStatus,
-  loadingPhrases = 'tips',
+  loadingPhrasesMode = 'tips',
   customWittyPhrases,
   errorVerbosity = 'full',
   maxLength,
@@ -42,8 +43,10 @@ export const useLoadingIndicator = ({
   const isPhraseCyclingActive = streamingState === StreamingState.Responding;
   const isWaiting = streamingState === StreamingState.WaitingForConfirmation;
 
-  const showTips = loadingPhrases === 'tips' || loadingPhrases === 'all';
-  const showWit = loadingPhrases === 'witty' || loadingPhrases === 'all';
+  const showTips =
+    loadingPhrasesMode === 'tips' || loadingPhrasesMode === 'all';
+  const showWit =
+    loadingPhrasesMode === 'witty' || loadingPhrasesMode === 'all';
 
   const { currentTip, currentWittyPhrase } = usePhraseCycler(
     isPhraseCyclingActive,

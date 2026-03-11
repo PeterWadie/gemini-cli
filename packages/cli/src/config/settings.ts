@@ -169,6 +169,7 @@ export interface SummarizeToolOutputSettings {
 export type LoadingPhrasesMode = 'tips' | 'witty' | 'all' | 'off';
 
 export interface AccessibilitySettings {
+  /** @deprecated Use ui.loadingPhrases instead. */
   enableLoadingPhrases?: boolean;
   screenReader?: boolean;
 }

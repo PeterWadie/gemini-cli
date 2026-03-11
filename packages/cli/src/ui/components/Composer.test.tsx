@@ -250,7 +250,7 @@ const createMockConfig = (overrides = {}): Config =>
 
 const renderComposer = async (
   uiState: UIState,
-  settings = createMockSettings({ ui: { useLegacyLayout: true } }),
+  settings = createMockSettings({ ui: { footerLayoutRefresh: false } }),
   config = createMockConfig(),
   uiActions = createMockUIActions(),
 ) => {
@@ -381,7 +381,7 @@ describe('Composer', () => {
         },
       });
       const settings = createMockSettings({
-        ui: { inlineThinkingMode: 'full', useLegacyLayout: true },
+        ui: { inlineThinkingMode: 'full', footerLayoutRefresh: false },
       });
 
       const { lastFrame } = await renderComposer(uiState, settings);
@@ -588,7 +588,7 @@ describe('Composer', () => {
         cleanUiDetailsVisible: false,
       });
       const settings = createMockSettings({
-        ui: { useLegacyLayout: true, showShortcutsHint: false },
+        ui: { footerLayoutRefresh: false, showShortcutsHint: false },
       });
 
       const { lastFrame } = await renderComposer(uiState, settings);
@@ -745,7 +745,7 @@ describe('Composer', () => {
       const settings = createMockSettings({
         ui: {
           footer: { hideContextPercentage: false },
-          useLegacyLayout: true,
+          footerLayoutRefresh: false,
         },
       });
 
@@ -852,7 +852,7 @@ describe('Composer', () => {
       const settings = createMockSettings({
         ui: {
           showShortcutsHint: false,
-          useLegacyLayout: true,
+          footerLayoutRefresh: false,
         },
       });
 

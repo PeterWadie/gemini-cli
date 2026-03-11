@@ -16,13 +16,14 @@ import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { isNarrowWidth } from '../utils/isNarrowWidth.js';
 import { INTERACTIVE_SHELL_WAITING_PHRASE } from '../hooks/usePhraseCycler.js';
 import { GENERIC_WORKING_LABEL } from '../textConstants.js';
+import type { LoadingPhrasesMode } from '../../config/settings.js';
 
 interface LoadingIndicatorProps {
   currentLoadingPhrase?: string;
   wittyPhrase?: string;
   showWit?: boolean;
   showTips?: boolean;
-  loadingPhrases?: 'tips' | 'witty' | 'all' | 'off';
+  loadingPhrases?: LoadingPhrasesMode;
   errorVerbosity?: 'low' | 'full';
   elapsedTime: number;
   inline?: boolean;
@@ -96,7 +97,7 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
     primaryText === GENERIC_WORKING_LABEL ? (
       <Box marginLeft={1}>
         <Text color={theme.text.secondary} dimColor italic>
-          {wittyPhrase} :)
+          {wittyPhrase}
         </Text>
       </Box>
     ) : null;

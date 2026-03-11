@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -10,7 +10,6 @@ import {
   CoreToolCallStatus,
 } from '@google/gemini-cli-core';
 import { Box, Text, useIsScreenReaderEnabled } from 'ink';
-import type React from 'react';
 import { useState, useEffect, useMemo } from 'react';
 import { useConfig } from '../contexts/ConfigContext.js';
 import { useSettings } from '../contexts/SettingsContext.js';
@@ -47,11 +46,7 @@ import { HookStatusDisplay } from './HookStatusDisplay.js';
 import { ConfigInitDisplay } from './ConfigInitDisplay.js';
 import { TodoTray } from './messages/Todo.js';
 
-interface ComposerProps {
-  isFocused: boolean;
-}
-
-export const Composer: React.FC<ComposerProps> = ({ isFocused }) => {
+export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
   const uiState = useUIState();
   const uiActions = useUIActions();
   const settings = useSettings();
@@ -380,9 +375,6 @@ export const Composer: React.FC<ComposerProps> = ({ isFocused }) => {
         />
       );
     }
-    if (hasPendingActionRequired) {
-      return <Text color={theme.status.warning}>↑ Action required</Text>;
-    }
     return null;
   };
 
@@ -442,17 +434,7 @@ export const Composer: React.FC<ComposerProps> = ({ isFocused }) => {
     if (!showUiDetails && !showMinimalMetaRow) return null;
 
     return (
-      <Box
-        flexDirection="column"
-        width="100%"
-        borderStyle="bold"
-        borderTop
-        borderBottom={false}
-        borderLeft={false}
-        borderRight={false}
-        borderColor={theme.border.default}
-        borderDimColor={true}
-      >
+      <Box flexDirection="column" width="100%">
         {/* Row 1: multipurpose status (thinking, hooks, wit, tips) */}
         {((!showUiDetails && showMinimalMetaRow) ||
           (showUiDetails && true)) && (
