@@ -20,7 +20,7 @@ import { reportError } from '../utils/errorReporting.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { logMalformedJsonResponse } from '../telemetry/loggers.js';
 import { MalformedJsonResponseEvent, LlmRole } from '../telemetry/types.js';
-import { retryWithBackoff } from '../utils/retry.js';
+import { retryWithBackoff, DEFAULT_MAX_ATTEMPTS } from '../utils/retry.js';
 import { coreEvents } from '../utils/events.js';
 import { getDisplayString } from '../config/models.js';
 import type { ModelConfigKey } from '../services/modelConfigService.js';
@@ -28,8 +28,6 @@ import {
   applyModelSelection,
   createAvailabilityContextProvider,
 } from '../availability/policyHelpers.js';
-
-const DEFAULT_MAX_ATTEMPTS = 5;
 
 /**
  * Options for the generateJson utility function.

@@ -44,6 +44,7 @@ vi.mock('../utils/errors.js', async (importOriginal) => {
 });
 
 vi.mock('../utils/retry.js', () => ({
+  DEFAULT_MAX_ATTEMPTS: 4,
   retryWithBackoff: vi.fn(async (fn, options) => {
     // Default implementation - just call the function
     const result = await fn();
@@ -251,7 +252,7 @@ describe('BaseLlmClient', () => {
       expect(retryWithBackoff).toHaveBeenCalledWith(
         expect.any(Function),
         expect.objectContaining({
-          maxAttempts: 5,
+          maxAttempts: 4,
         }),
       );
     });

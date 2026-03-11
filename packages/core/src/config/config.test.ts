@@ -281,9 +281,9 @@ describe('Server Config (config.ts)', () => {
     it('should use provided maxAttempts if <= DEFAULT_MAX_ATTEMPTS', () => {
       const config = new Config({
         ...baseParams,
-        maxAttempts: 5,
+        maxAttempts: 3,
       });
-      expect(config.getMaxAttempts()).toBe(5);
+      expect(config.getMaxAttempts()).toBe(3);
     });
 
     it('should cap maxAttempts at DEFAULT_MAX_ATTEMPTS', () => {

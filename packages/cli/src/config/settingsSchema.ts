@@ -316,9 +316,9 @@ const SETTINGS_SCHEMA = {
         label: 'Max Chat Model Attempts',
         category: 'General',
         requiresRestart: false,
-        default: 10,
+        default: 4,
         description:
-          'Maximum number of attempts for requests to the main chat model. Cannot exceed 10.',
+          'Maximum number of attempts for requests to the main chat model. Cannot exceed 4.',
         showInDialog: true,
       },
       debugKeystrokeLogging: {

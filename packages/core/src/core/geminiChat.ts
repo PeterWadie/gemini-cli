@@ -344,7 +344,7 @@ export class GeminiChat {
       this: GeminiChat,
     ): AsyncGenerator<StreamEvent, void, void> {
       try {
-        const maxAttempts = INVALID_CONTENT_RETRY_OPTIONS.maxAttempts;
+        const maxAttempts = this.config.getMaxAttempts();
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           let isConnectionPhase = true;
@@ -396,20 +396,18 @@ export class GeminiChat {
               return; // Stop the generator
             }
 
+            if (isConnectionPhase) {
+              // Connection phase errors have already been retried by retryWithBackoff.
+              // If they bubble up here, they are exhausted or fatal.
+              throw error;
+            }
+
             // Check if the error is retryable (e.g., transient SSL errors
-            // like ERR_SSL_SSLV3_ALERT_BAD_RECORD_MAC)
+            // like ERR_SSL_SSLV3_ALERT_BAD_RECORD_MAC or ApiError)
             const isRetryable = isRetryableError(
               error,
               this.config.getRetryFetchErrors(),
             );
-
-            // For connection phase errors, only retryable errors should continue
-            if (isConnectionPhase) {
-              if (!isRetryable || signal.aborted) {
-                throw error;
-              }
-              // Fall through to retry logic for retryable connection errors
-            }
 
             const isContentError = error instanceof InvalidStreamError;
             const errorType = isContentError ? error.type : 'NETWORK_ERROR';
